@@ -1,0 +1,32 @@
+LOAD CSV WITH HEADERS FROM "file:///actors.csv" AS line
+CREATE (:Actor {actorId: toInteger(line.actorid), gender: line.a_gender, quality: toInteger(line.a_quality)});
+
+LOAD CSV WITH HEADERS FROM "file:///directors.csv" AS line
+CREATE (:Director {directorId: toInteger(line.directorid), quality: toInteger(line.d_quality), avgRevenue: toInteger(line.avg_revenue)});
+
+LOAD CSV WITH HEADERS FROM "file:///movies.csv" AS line
+CREATE (:Movie {movieId: toInteger(line.movieid), isEnglish: line.isEnglish, country: line.country, runningTime: toInteger(line.runningtime), title: line.title, year: toInteger(line.year)});
+
+LOAD CSV WITH HEADERS FROM "file:///users.csv" AS line
+CREATE (:User {userId: toInteger(line.userid), age: toInteger(line.age), gender: line.u_gender, occupation: toInteger(line.occupation)});
+
+CREATE INDEX idx_movie_id FOR (m:Movie) ON (m.movieId);
+CREATE INDEX idx_actor_id FOR (a:Actor) ON (a.actorId);
+CREATE INDEX idx_director_id FOR (d:Director) ON (d.directorId);
+CREATE INDEX idx_user_id FOR (u:User) ON (u.userId);
+
+LOAD CSV WITH HEADERS FROM "file:///movies2actors.csv" AS line
+MATCH (m:Movie {movieId: toInteger(line.movieid)}), (a:Actor {actorId: toInteger(line.actorid)})
+CREATE (a)-[:ACTED_IN {castNum: toInteger(line.cast_num)}]->(m);
+
+LOAD CSV WITH HEADERS FROM "file:///movies2directors.csv" AS line
+MATCH (m:Movie {movieId: toInteger(line.movieid)}), (d:Director {directorId: toInteger(line.directorid)})
+CREATE (m)-[:DIRECTED_BY {genre: line.genre}]->(d);
+
+LOAD CSV WITH HEADERS FROM "file:///u2base.csv" AS line
+MATCH (u:User {userId: toInteger(line.userid)}), (m:Movie {movieId: toInteger(line.movieid)})
+CREATE (u)-[:RATED {rating: toInteger(line.rating)}]->(m);
+
+LOAD CSV WITH HEADERS FROM "file:///follow.csv" AS line
+MATCH (u:User {userId: toInteger(line.user)}), (u2:User {userId: toInteger(line.following)})
+CREATE (u)-[:FOLLOWS]->(u2);

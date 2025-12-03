@@ -1,0 +1,785 @@
+Get all unique actors who have acted in movies released in the year 2000:
+SQL: 
+SELECT DISTINCT a.*
+FROM actors a INNER JOIN movies2actors m2a ON a.actor_id = m2a.actor_id INNER JOIN movies m ON m2a.movie_id = m.movie_id
+WHERE m.year = 2000;
+
+Cypher: MATCH (a:Actor)-[:ACTED_IN]->(m:Movie) WHERE m.year = 2000 RETURN DISTINCT a;
+
+Find the movie with the highest rating:
+SQL: 
+SELECT m.title, u.rating 
+FROM movies m INNER JOIN u2base u ON m.movie_id = u.movie_id GROUP BY m.title ORDER BY AVG(u.rating) DESC, m.title LIMIT 1;
+
+Cypher: 
+MATCH (m:Movie)<-[r:RATED]-(u:User) 
+RETURN m.title, AVG(r.rating) ORDER BY AVG(r.rating) DESC, m.title LIMIT 1;
+
+Get all users who have rated movies directed by Christopher Nolan:
+SQL:
+SELECT DISTINCT u.user_id, u.age, u.u_gender, u.occupation 
+FROM users u INNER JOIN u2base ub ON u.user_id = ub.user_id INNER JOIN movies2directors m2d ON ub.movie_id = m2d.movie_id INNER JOIN directors d ON m2d.director_id = d.director_id 
+WHERE d.director_id = 92;
+
+Cypher: 
+MATCH (u:User)-[:RATED]->(m:Movie)-[:DIRECTED_BY]->(d:Director)
+WHERE d.directorId = 92 RETURN DISTINCT u;
+
+Find the actor who has acted in the most movies:
+SQL: 
+SELECT a.actor_id, a.a_gender, a.a_quality, COUNT(m2a.movie_id) AS movie_count
+FROM actors a INNER JOIN movies2actors m2a ON a.actor_id = m2a.actor_id GROUP BY a.actor_id ORDER BY movie_count DESC LIMIT 1;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)
+RETURN a.actorId, a.gender, a.quality, COUNT(m) AS movie_count ORDER BY movie_count DESC LIMIT 1;
+
+Get all movies directed by Ridley Scott and released in the 1980s:
+SQL:
+SELECT m.title
+FROM movies m INNER JOIN movies2directors m2d ON m.movie_id = m2d.movie_id INNER JOIN directors d ON m2d.director_id = d.director_id
+WHERE d.director_id = 40901 AND m.year >= 1930 AND m.year < 1940
+ORDER BY m.year;
+
+Cypher: 
+MATCH (m:Movie)-[:DIRECTED_BY]->(d:Director)
+WHERE d.directorId = 40901 AND m.year >= 1930 AND m.year < 1940
+RETURN m.title ORDER BY m.year;
+
+Find the user who has rated the most movies:
+SQL:
+SELECT u.user_id, u.age, u.u_gender, u.occupation, COUNT(u2b.movie_id) AS movie_count 
+FROM users u INNER JOIN u2base u2b ON u.user_id = u2b.user_id GROUP BY u.user_id ORDER BY movie_count DESC LIMIT 1;
+
+Cypher: 
+MATCH (u:User)-[:RATED]->(m:Movie)
+RETURN u.userId, u.age, u.gender, u.occupation, COUNT(m) AS movie_count ORDER BY movie_count DESC LIMIT 1;
+
+Get all movies that have been rated by users who follow each other:
+SQL:
+SELECT DISTINCT m.title
+FROM movies m
+INNER JOIN u2base u ON m.movie_id = u.movie_id
+INNER JOIN follow f ON u.user_id = f.following
+INNER JOIN u2base u2 ON f.user = u2.user_id AND u.movie_id = u2.movie_id
+WHERE u.user_id <> u2.user_id
+
+
+SELECT DISTINCT m.title
+FROM movies m
+INNER JOIN u2base u ON m.movie_id = u.movie_id
+INNER JOIN follow f ON u.user_id = f.following
+INNER JOIN u2base u2 ON f.user = u2.user_id AND u.movie_id = u2.movie_id
+WHERE u.user_id <> u2.user_id
+AND EXISTS (
+  SELECT 1 FROM follow f2 
+  WHERE f2.following = u2.user_id AND f2.user = u.user_id
+);
+
+SELECT DISTINCT m.title
+FROM movies m
+INNER JOIN u2base u ON m.movie_id = u.movie_id
+INNER JOIN follow f1 ON u.user_id = f1.following
+INNER JOIN follow f2 ON u.user_id = f2.user
+INNER JOIN u2base u2 ON f1.user = u2.user_id AND f2.following = u2.user_id AND u.movie_id = u2.movie_id
+WHERE u.user_id <> u2.user_id;
+
+Cypher:
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)
+MATCH (u1)-[r1:RATED]->(m:Movie)<-[r2:RATED]-(u2)
+WHERE u1 <> u2
+RETURN DISTINCT m.title
+
+
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)
+MATCH (u1)-[r1:RATED]->(m:Movie)<-[r2:RATED]-(u2)
+WHERE u1 <> u2 AND EXISTS((u2)-[:FOLLOWS]->(u1))
+RETURN DISTINCT m.title
+
+
+Get all unique users that have rated a movie with a rating of 4 or higher:
+SQL:
+SELECT DISTINCT users.user_id
+FROM u2base
+INNER JOIN users ON u2base.user_id = users.user_id
+WHERE u2base.rating >= 4;
+
+Cypher:
+MATCH (u:User)-[n:RATED]->(m:Movie)
+WHERE n.rating >= 4
+RETURN DISTINCT u.userId;
+
+Find the movie with the most ratings:
+SQL:
+SELECT movies.title, COUNT(u2base.rating) AS rating_count
+FROM movies
+INNER JOIN u2base ON movies.movie_id = u2base.movie_id
+GROUP BY movies.title
+ORDER BY rating_count DESC
+LIMIT 1;
+
+Cypher:
+MATCH (m:Movie)<-[n:RATED]-()
+RETURN m.title, COUNT(n) AS rating_count
+ORDER BY rating_count DESC
+LIMIT 1;
+
+Find the user who has rated the most movies directed by Christopher Nolan:
+
+SQL:
+SELECT users.user_id, COUNT(*) AS directed_movies_count
+FROM u2base
+INNER JOIN users ON u2base.user_id = users.user_id
+INNER JOIN movies2directors ON u2base.movie_id = movies2directors.movie_id
+INNER JOIN directors ON movies2directors.director_id = directors.director_id
+WHERE directors.director_id = 98630
+GROUP BY users.user_id
+ORDER BY directed_movies_count DESC
+LIMIT 1;
+
+Cypher:
+MATCH (u:User)-[:RATED]->(m:Movie)-[:DIRECTED_BY]->(d:Director)
+WHERE d.directorId = 98630
+WITH u, count(m) AS directed_movies_count
+RETURN u.userId AS userId, directed_movies_count
+ORDER BY directed_movies_count DESC
+LIMIT 1;
+
+
+
+
+
+
+
+Get all unique users that have rated a movie with a rating higher than 4.
+
+SQL:
+SELECT DISTINCT users.user_id, users.age, users.u_gender, users.occupation
+FROM users 
+JOIN u2base ON users.user_id = u2base.user_id 
+WHERE u2base.rating > 4;
+
+Cypher:
+MATCH (u:User)-[r:RATED]->(m:Movie)
+WHERE r.rating > 4
+RETURN DISTINCT u;
+
+Advantage of Cypher:
+This query is more intuitive in Cypher because we are traversing the graph and looking for patterns between nodes, whereas in SQL we are performing a more complex join operation.
+
+Find the actors who have acted in movies that were directed by Steven Spielberg.
+SQL:
+SELECT DISTINCT actors.actor_id, actors.a_gender, actors.a_quality 
+FROM actors 
+JOIN movies2actors ON actors.actor_id = movies2actors.actor_id 
+JOIN movies2directors ON movies2actors.movie_id = movies2directors.movie_id 
+JOIN directors ON movies2directors.director_id = directors.director_id 
+WHERE directors.director_id = 172161;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)-[:DIRECTED_BY]->(d:Director {directorId: 172161})
+RETURN DISTINCT a;
+
+Advantage of Cypher:
+This query is more intuitive in Cypher because we are traversing the graph and looking for patterns between nodes, whereas in SQL we are performing a more complex join operation.
+
+
+Selection query: Get all the movies directed by a director with directorid = 89098, and the actors who acted in those movies.
+
+SQL query:
+SELECT m.*, a.*
+FROM movies m
+INNER JOIN movies2directors md ON m.movie_id = md.movie_id
+INNER JOIN directors d ON md.director_id = d.director_id
+INNER JOIN movies2actors ma ON m.movie_id = ma.movie_id
+INNER JOIN actors a ON ma.actor_id = a.actor_id
+WHERE d.director_id = 89098;
+
+Cypher query:
+MATCH (m:Movie)-[:DIRECTED_BY]->(d:Director {directorId: 89098})
+MATCH (m)<-[:ACTED_IN]-(a:Actor)
+RETURN m, a;
+
+Advantage of Cypher: This query is more intuitive to write in Cypher as we can easily traverse the relationships between nodes to retrieve the desired data.
+
+Aggregation query: Find the movie with the highest rating among all movies.
+
+SQL query:
+SELECT title, AVG(rating) AS avg_rating
+FROM movies m
+INNER JOIN u2base u ON m.movie_id = u.movie_id
+GROUP BY title
+ORDER BY avg_rating DESC, m.title
+LIMIT 1;
+
+Cypher query:
+MATCH (m:Movie)<-[r:RATED]-()
+RETURN m.title, AVG(r.rating) AS avg_rating
+ORDER BY avg_rating DESC, m.title
+LIMIT 1;
+
+Advantage of SQL: This query is simpler to write in SQL and uses standard aggregation functions like AVG and GROUP BY.
+
+Path query: Find all the users who have rated a movie directed by a director with directorid = 1, and follow other users who have also rated a movie directed by that director.
+
+SQL query:
+SELECT u.userid, u.age
+FROM Users u
+INNER JOIN U2Base ub ON u.userid = ub.userid
+INNER JOIN Movie m ON ub.movieid = m.movieid
+INNER JOIN Movies2Directors md ON m.movieid = md.movieid
+INNER JOIN U2Base ub2 ON u.userid = ub2.userid AND ub.movieid != ub2.movieid
+INNER JOIN Movies2Directors md2 ON ub2.movieid = md2.movieid AND md.directorid = md2.directorid
+WHERE md.directorid = 1;
+
+Cypher:
+MATCH (u:User)-[:RATED]->(m:Movie)-[:DIRECTED_BY]->(d:Director {directorId: 1})
+MATCH (u)-[:FOLLOWS]->(u2)
+
+
+Find all users who follow at least 5 other users.
+SQL:
+SELECT DISTINCT user
+FROM follow
+GROUP BY user
+HAVING COUNT(following) >= 5;
+
+Cypher:
+MATCH (u:User)-[:FOLLOWS]->(f:User)
+WITH u, COUNT(f) AS num_following
+WHERE num_following >= 5
+RETURN DISTINCT u.userId
+
+
+Find the number of movies that each director has directed.
+SQL:
+SELECT directors.director_id, COUNT(movies2directors.movie_id) AS num_movies
+FROM directors
+INNER JOIN movies2directors ON directors.director_id = movies2directors.director_id
+GROUP BY directors.director_id;
+
+Cypher:
+MATCH (d:Director)<-[:DIRECTED_BY]-(m:Movie)
+RETURN d.directorId, COUNT(m.movieId) AS num_movies;
+
+Find the average rating for each movie in English.
+SQL:
+SELECT m.title, AVG(u2b.rating) AS avg_rating
+FROM movies m
+JOIN movies2actors m2a ON m.movie_id = m2a.movie_id
+JOIN movies2directors m2d ON m.movie_id = m2d.movie_id
+JOIN u2base u2b ON m.movie_id = u2b.movie_id
+WHERE m.is_english = 'T'
+GROUP BY m.title;
+
+Cypher:
+MATCH (m:Movie {isEnglish: 'T'})<-[r:RATED]-(u:User)
+WITH m, avg(r.rating) as avg_rating
+RETURN m.title, avg_rating;
+
+
+
+Find the number of actors who have acted in more than 5 movies.
+Find the number of users who have rated at least one movie in each year from 2010 to 2020.
+
+Find the average quality of actors who have acted in movies with a running time of more than 2 hours.
+SQL:
+SELECT AVG(a_quality) AS avg_quality
+FROM actors
+JOIN movies2actors ON actors.actor_id = movies2actors.actor_id
+JOIN movies ON movies2actors.movie_id = movies.movie_id
+WHERE movies.running_time > 2;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)
+WHERE m.runningTime > 2
+WITH AVG(a.quality) AS avg_quality
+RETURN avg_quality;
+
+The advantages of using SQL for these queries would be:
+
+SQL is better suited for large datasets and complex queries that involve multiple tables.
+SQL allows for more flexibility in querying and filtering data.
+SQL databases have more mature and standardized tools for data management and analysis.
+
+The advantages of using Cypher for these queries would be:
+
+Cypher is designed specifically for graph databases and can easily traverse complex graph structures.
+Cypher allows for more natural and expressive queries that focus on relationships between nodes.
+Cypher can easily handle queries that involve pathfinding or graph metrics.
+
+
+Selection query: Get all unique users that have rated a movie with a rating of 5.
+SQL:
+SELECT DISTINCT Users.userid
+FROM Users
+JOIN U2Base ON Users.userid = U2Base.userid
+WHERE U2Base.rating = 5;
+
+Cypher:
+MATCH (u:User)-[:RATED {rating: 5}]->(m:Movie)
+RETURN DISTINCT u.userId
+
+Advantage of SQL: SQL is very efficient at performing joins and filtering data based on specific criteria.
+
+Advantage of Cypher: Cypher provides a more intuitive syntax for querying relationships in a graph database.
+
+Aggregation query: Find the movie with the highest average rating.
+SQL:
+SELECT title, AVG(rating)
+FROM Movie
+JOIN U2Base ON Movie.movieid = U2Base.movieid
+GROUP BY title
+ORDER BY AVG(rating) DESC
+LIMIT 1;
+
+Cypher:
+MATCH (m:Movie)<-[:RATED]-(u:User)
+RETURN m.title, AVG(u.rating) as avg_rating
+ORDER BY avg_rating DESC
+LIMIT 1
+
+Advantage of SQL: SQL is great at performing complex aggregations and grouping operations.
+
+Advantage of Cypher: Cypher is able to handle complex graph traversals with ease, making it ideal for calculating metrics across the graph.
+
+Path query: Find all movies noted by users who have rated more than one movie directed by Steven Spielberg.
+SQL:
+SELECT DISTINCT Movie.title
+FROM Movie
+JOIN U2Base ON Movie.movieid = U2Base.movieid
+JOIN Movies2Directors ON Movie.movieid = Movies2Direct
+
+
+Here are ten example queries that could showcase the strengths of both relational and graph databases:
+
+Selection Query: Retrieve all movies released in a specific year, along with their directors and actors.
+
+SQL:
+SELECT DISTINCT m.title, d.director_id, a.actor_id
+FROM movies m
+JOIN movies2directors md ON m.movie_id = md.movie_id
+JOIN directors d ON md.director_id = d.director_id
+JOIN movies2actors ma ON m.movie_id = ma.movie_id
+JOIN actors a ON ma.actor_id = a.actor_id
+WHERE m.year = 1998;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie {year: 1998})-[:DIRECTED_BY]->(d:Director)
+RETURN m.title, d.directorId, a.actorId;
+
+Aggregation Query: Find the top-rated movies, along with their average rating and the number of ratings they received.
+
+SQL:
+SELECT m.title, AVG(u.rating) AS avg_rating, COUNT(u.rating) AS num_ratings
+FROM movies m
+JOIN u2base u ON m.movie_id = u.movie_id
+GROUP BY m.movie_id, m.title
+ORDER BY avg_rating DESC, num_ratings DESC, m.title
+LIMIT 10;
+
+Cypher:
+MATCH (m:Movie)<-[r:RATED]-(:User)
+WITH m, AVG(r.rating) AS avg_rating, COUNT(r.rating) AS num_ratings
+RETURN m.title, avg_rating, num_ratings
+ORDER BY avg_rating DESC, num_ratings DESC, m.title
+LIMIT 10;
+
+Path Query: Find all users who have rated a movie directed by a specific director, and who also follow other users who have rated another movie directed by the same director.
+
+SQL:
+SELECT u.userid, u.age
+FROM Users u
+JOIN U2Base ur ON u.userid = ur.userid
+JOIN Movie m ON ur.movieid = m.movieid
+JOIN Movies2Directors md ON m.movieid = md.movieid
+JOIN Director d ON md.directorid = d.directorid
+JOIN Follow f ON u.userid = f.user
+JOIN Users u2 ON f.following = u2.userid
+JOIN U2Base ur2 ON u2.userid = ur2.userid
+JOIN Movie m2 ON ur2.movieid = m2.movieid
+JOIN Movies2Directors md2 ON m2.movieid = md2.movieid
+WHERE d.directorid = 123 AND md2.directorid = 123 AND m2.year = 2021;
+
+Cypher:
+MATCH (u:User)-[:RATED]->(m:Movie)<-[:DIRECTED_BY]-(d:Director {directorId: 123})
+MATCH (u)-[:FOLLOWS]->(u2:User)-[:RATED]->(m2:Movie)<-[:DIRECTED_BY]-(d2:Director {directorId: 123})
+WHERE m2.year = 2021
+RETURN u.userId, u.age;
+
+Graph Metric Calculation Query: Find the directors who are most popular among users who have rated at least 5 movies.
+
+SQL:
+SELECT d.director_id, COUNT(DISTINCT ur.user_id) AS num_users
+FROM directors d
+JOIN movies2directors md ON d.director_id = md.director_id
+JOIN movies m ON md.movie_id = m.movie_id
+JOIN u2base ur ON m.movie_id = ur.movie_id
+GROUP BY d.director_id
+HAVING COUNT(DISTINCT ur.user_id) >= 5
+ORDER BY num_users DESC
+LIMIT 10;
+
+Cypher:
+MATCH (director:Director)<-[:DIRECTED_BY]-(movie)<-[:RATED]-(user:User)
+WITH director, COUNT(DISTINCT user.userId) AS num_users
+WHERE num_users >= 5
+RETURN director.directorId AS director_id, num_users
+ORDER BY num_users DESC
+LIMIT 10;
+
+
+Selection query: Get all unique actors who acted in a movie that was directed by a director with a certain quality score.
+
+SQL:
+SELECT DISTINCT a.actor_id
+FROM actors a
+JOIN movies2actors ma ON a.actor_id = ma.actor_id
+JOIN movies2directors md ON ma.movie_id = md.movie_id
+JOIN directors d ON md.director_id = d.director_id
+WHERE d.d_quality = 5;
+
+Cypher:
+MATCH (d:Director {quality: 5})<-[:DIRECTED_BY]-(m:Movie)<-[:ACTED_IN]-(a:Actor)
+RETURN DISTINCT a.actorId;
+
+Advantage of Cypher: In Cypher, it is easy to traverse relationships between nodes and filter based on node properties in a single query.
+
+Aggregation query: Find the director with the highest average movie revenue.
+SQL:
+SELECT directorid, AVG(avg_revenue) as avg_revenue
+FROM Director
+GROUP
+
+
+Selection query: Find all movies released after the year 2000 with a rating of at least 8.
+
+SQL:
+SELECT title, year 
+FROM Movie 
+JOIN U2Base ON Movie.movieid = U2Base.movieid 
+WHERE year > 2000 AND rating >= 8;
+
+Cypher:
+MATCH (m:Movie)-[:RATED {rating: >= 8}]->() 
+WHERE m.year > 2000 
+RETURN m.title, m.year;
+
+
+Sure, here are 10 sample queries that demonstrate the advantages of both SQL and Cypher:
+
+Selection Query: Retrieve the name and year of all movies made in the United States with a running time greater than 120 minutes.
+
+SQL:
+SELECT title, year FROM movies WHERE country='USA' AND running_time > 2;
+
+Cypher:
+MATCH (m:Movie {country: 'USA'})
+WHERE m.runningTime > 2
+RETURN m.title, m.year;
+Advantages of SQL: SQL is generally faster and more efficient for basic selection queries because it has been optimized for these types of operations.
+
+Advantages of Cypher: Cypher's graph traversal capabilities make it easier to navigate complex relationships and find specific patterns or nodes.
+
+Aggregation Query: Calculate the average rating of all movies in the database.
+
+SQL:
+SELECT AVG(rating) FROM U2Base;
+
+Cypher:
+MATCH (m:Movie)<-[r:RATED]-()
+RETURN AVG(r.rating);
+
+Advantages of SQL: SQL's built-in aggregation functions make it easy to calculate metrics like averages and sums.
+
+Advantages of Cypher: Cypher's traversal capabilities allow for more complex queries that involve multiple relationships and nodes.
+
+Path Query: Find all the actors who have acted in movies directed by James Cameron.
+
+SQL:
+SELECT DISTINCT a.actorid, a.a_gender, a.a_quality
+FROM Actor a, Movie m, Director d, Movies2Actors ma, Movies2Directors md
+WHERE a.actorid = ma.actorid AND m.movieid = ma.movieid AND m.movieid = md.movieid AND d.directorid = md.directorid AND d.directorid = 1;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(:Movie)<-[:DIRECTED_BY]-(:Director {directorId: 1})
+RETURN DISTINCT a.actorId, a.gender, a.quality;
+
+Advantages of SQL: SQL can handle complex queries that involve multiple tables and relationships.
+
+Advantages of Cypher: Cypher's path traversal capabilities make it easier to find relationships between nodes and navigate complex graphs.
+
+Graph Metric Calculation Query: Find the shortest path between two actors who have acted in at least one movie together.
+
+SQL:
+This type of query is not possible in SQL as it does not have the capability to perform graph traversal operations.
+
+Cypher:
+MATCH (a1:Actor)-[:ACTED_IN]->(m)<-[:ACTED_IN]-(a2:Actor)
+WHERE a1.actorId <> a2.actorId
+WITH collect(DISTINCT m) AS movies, a1, a2
+CALL apoc.algo.shortestPath(a1, a2, 'ACTED_IN') YIELD path
+RETURN a1.actorId, a2.actorId, length(path) AS distance, movies;
+
+Advantages of SQL: SQL cannot perform this type of operation as it is not designed for graph traversal.
+
+Advantages of Cypher: Cypher's graph traversal capabilities make it possible to calculate graph metrics like shortest path and betweenness centrality.
+
+Selection Query: Find all movies that were released in the same year as "The Matrix".
+
+SQL:
+SELECT * FROM Movie WHERE year=(SELECT year FROM Movie WHERE title='The Matrix');
+
+Cypher:
+MATCH (m1:Movie {title: 'The Matrix'}), (m2:Movie {year: m1.year})
+RETURN m2;
+
+Advantages of SQL: SQL's subquery capabilities make it easy to find related data based on specific criteria.
+
+Advantages of Cypher: Cypher's
+
+
+Sure, here are 10 sample queries that you can run on both the relational database and the graph database to compare their strengths and weaknesses:
+
+Selection Query - Retrieve all the movies from the year 2000:
+SQL: SELECT * FROM Movie WHERE year=2000;
+Cypher: MATCH (m:Movie {year: 2000}) RETURN m;
+
+Aggregation Query - Find the average rating given by users for all movies:
+SQL: SELECT AVG(rating) FROM U2Base;
+Cypher: MATCH (m:Movie)<-[:RATED]-(u:User) RETURN AVG(u.rating);
+
+Path Query - Find all the actors who have acted in a movie directed by Christopher Nolan:
+SQL: SELECT DISTINCT a.* FROM Actor a JOIN Movies2Actors m2a ON a.actorid=m2a.actorid JOIN Movies2Directors m2d ON m2a.movieid=m2d.movieid JOIN Director d ON m2d.directorid=d.directorid WHERE d.directorid=1;
+Cypher: MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)<-[:DIRECTED_BY]-(d:Director {directorId: 1}) RETURN DISTINCT a;
+
+Graph Metric Calculation Query - Find the degree centrality for all actors:
+SQL: Not easily achievable with SQL alone.
+Cypher: MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(coActor:Actor) WITH a, COUNT(DISTINCT coActor) AS degreeCentrality RETURN a.actorId, degreeCentrality ORDER BY degreeCentrality DESC;
+
+Selection Query - Retrieve all the users who are aged between 18 and 35 and have given a rating of 5 to any movie:
+SQL: 
+SELECT DISTINCT u.* 
+FROM users u 
+JOIN u2base u2b ON u.user_id = u2b.user_id 
+WHERE u.age BETWEEN 18 AND 35 AND u2b.rating = 5;
+
+Cypher: 
+MATCH (u:User)-[r:RATED {rating: 5}]->(m:Movie)
+WHERE u.age >= 18 AND u.age <= 35
+RETURN DISTINCT u;
+
+Aggregation Query - Find the highest grossing movie directed by Christopher Nolan:
+SQL: SELECT MAX(avg_revenue) FROM Director d JOIN Movies2Directors m2d ON d.directorid=m2d.directorid JOIN Movie m ON m2d.movieid=m.movieid WHERE d.directorid=1;
+Cypher: MATCH (m:Movie)<-[:DIRECTED_BY]-(d:Director {directorId: 1}) RETURN m ORDER BY m.avgRevenue DESC LIMIT 1;
+
+Path Query - Find the shortest path between two actors:
+SQL: Not easily achievable with SQL alone.
+Cypher: MATCH p=shortestPath((a1:Actor)-[*]-(a2:Actor)) WHERE a1.actorId=1 AND a2.actorId=10 RETURN p;
+
+Graph Metric Calculation Query - Find the page rank for all directors:
+SQL: Not easily achievable with SQL alone.
+Cypher: CALL algo.pageRank.stream('Director', 'DIRECTED_BY', {iterations:20, dampingFactor:0.85}) YIELD nodeId, score RETURN algo.asNode(nodeId).directorId AS directorId, score ORDER BY score DESC;
+
+Selection Query - Retrieve all the movies that are not in English and are longer than 2 hours:
+SQL: SELECT * FROM Movie WHERE isEnglish='no' AND runningtime>120;
+Cypher: MATCH (m:Movie {isEnglish: 'no'}) WHERE m.runningTime > 120 RETURN m;
+
+
+Here are some sample queries that can be used to compare SQL and Cypher for the given database schema:
+
+Selection query: Retrieve all movies from the year 2000.
+
+SQL query:
+SELECT * FROM Movie WHERE year = 2000;
+
+Cypher query:
+MATCH (m:Movie {year: 2000}) RETURN m;
+
+Aggregation query: Find the average rating of all movies.
+
+SQL query:
+SELECT AVG(rating) FROM U2Base;
+
+Cypher query:
+MATCH (u:User)-[r:RATED]->(m:Movie)
+RETURN AVG(r.rating);
+
+Path query: Find all actors who acted in a movie directed by Quentin Tarantino.
+
+SQL query:
+SELECT a.* FROM Actor a
+JOIN Movies2Actors ma ON a.actorid = ma.actorid
+JOIN Movies2Directors md ON ma.movieid = md.movieid AND md.directorid = 1;
+(Note: Assuming Quentin Tarantino's directorid is 1)
+
+Cypher query:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)-[:DIRECTED_BY]->(d:Director {directorId: 1})
+RETURN a;
+
+Graph metric calculation query: Find the shortest path between two actors who acted together in a movie.
+
+SQL query:
+-- This query is not easily expressible in SQL and would require complex subqueries and joins.
+
+Cypher query:
+MATCH p=shortestPath((a1:Actor)-[:ACTED_IN]->()<-[:ACTED_IN]-(a2:Actor))
+RETURN p;
+
+Complex join query: Find all users who follow other users who rated movies directed by a director with a quality rating of 8 or higher.
+
+SQL query:
+SELECT DISTINCT u.* FROM Users u
+JOIN Follow f ON u.userid = f.user
+JOIN U2Base ub ON f.following = ub.userid
+JOIN Movies2Directors md ON ub.movieid = md.movieid
+JOIN Director d ON md.directorid = d.directorid AND d.d_quality >= 8;
+
+Cypher query:
+MATCH (u1:User)-[:FOLLOWS]->(u2:
+
+
+Sure, here are 10 queries that can be expressed in both SQL and Cypher and showcase the advantages of each platform:
+
+Selection query: Retrieve all movies released in the year 2000 with a running time of more than 120 minutes.
+
+SQL:
+SELECT * FROM Movie WHERE year=2000 AND runningtime>120;
+
+Cypher:
+MATCH (m:Movie) WHERE m.year=2000 AND m.runningTime>120 RETURN m;
+
+Advantage of Cypher: This query is more intuitive in Cypher as it directly matches the nodes that satisfy the criteria.
+
+Aggregation query: Find the average age of all users who have rated a movie with a rating of 5.
+
+SQL:
+SELECT AVG(age) FROM Users u JOIN U2Base r ON u.userid=r.userid WHERE rating=5;
+
+Cypher:
+MATCH (u:User)-[:RATED {rating: 5}]->() RETURN AVG(u.age);
+
+Advantage of Cypher: This query is simpler in Cypher as it directly matches the nodes and does not require joining tables.
+
+Path query: Find all actors who have acted in a movie directed by Steven Spielberg.
+
+SQL:
+SELECT DISTINCT a.* FROM Actor a JOIN Movies2Actors m ON a.actorid=m.actorid JOIN Movies2Directors d ON m.movieid=d.movieid JOIN Director di ON d.directorid=di.directorid WHERE di.directorid=1;
+
+Cypher:
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)<-[:DIRECTED_BY]-(d:Director {directorId:1}) RETURN DISTINCT a;
+
+Advantage of Cypher: This query is more intuitive in Cypher as it directly matches the nodes and traverses the relationships.
+
+Graph metric calculation query: Find the shortest path between two users who follow each other.
+
+SQL: This query is not possible in SQL without a custom function.
+
+Cypher:
+MATCH (u1:User)-[:FOLLOWS]->(u2:User)
+WHERE u1 <> u2 AND EXISTS((u2)-[:FOLLOWS]->(u1))
+MATCH p=shortestPath((u1)-[*]-(u2))
+RETURN p;
+
+Advantage of Cypher: This query can only be expressed in a graph database like Neo4j as it requires graph traversal and path calculation.
+
+Selection query: Retrieve all movies with the word "love" in the title and a rating of at least 4.
+
+SQL:
+SELECT * FROM Movie m JOIN U2Base r ON m.movieid=r.movieid WHERE title LIKE '%love%' AND rating>=4;
+
+Cypher:
+MATCH (m:Movie {title: 'love'})<-[:RATED {rating: >=4}]-(u:User) RETURN m;
+
+Advantage of SQL: This query is simpler in SQL as it does not require multiple pattern matches and can be expressed in a single join.
+
+Aggregation query: Find the average rating of all movies directed by Christopher Nolan.
+
+SQL:
+SELECT AVG(rating) FROM Movie m JOIN Movies2Directors d ON m.movieid=d.movieid JOIN Director di ON d.directorid=di.directorid JOIN U2Base r ON m.movieid=r.movieid WHERE di.directorid=2;
+
+Cypher:
+MATCH (m:Movie)<-[:DIRECTED_BY]-(d:Director {directorId: 2})<-[:RATED]-(u:User) RETURN AVG(u.rating);
+
+Advantage of Cypher: This query is simpler in Cypher as it directly
+
+
+Selection Query: Get all the movies released in a specific year and their directors
+SQL:
+SELECT Movie.title, Director.directorid
+FROM Movie JOIN Movies2Directors ON Movie.movieid = Movies2Directors.movieid
+JOIN Director ON Movies2Directors.directorid = Director.directorid
+WHERE Movie.year = 2022;
+
+Cypher:
+MATCH (m:Movie {year: 2022})-[:DIRECTED_BY]->(d:Director)
+RETURN m.title, d.directorId
+
+Advantage of SQL: SQL has the advantage of being more familiar to users who have a background in relational databases. Additionally, it is more suited for handling large datasets and complex queries.
+
+Advantage of Cypher: Cypher is more suited for traversing graph structures, making it a better choice for queries that involve graph relationships.
+
+Aggregation Query: Find the movie with the highest average rating
+SQL:
+SELECT Movie.title, AVG(U2Base.rating) AS avg_rating
+FROM Movie JOIN U2Base ON Movie.movieid = U2Base.movieid
+GROUP BY Movie.title
+ORDER BY avg_rating DESC
+LIMIT 1;
+
+Cypher:
+MATCH (m:Movie)-[:RATED]->(u:User)
+WITH m.title AS title, AVG(u.rating) AS avg_rating
+RETURN title, avg_rating
+ORDER BY avg_rating DESC
+LIMIT 1
+
+Advantage of SQL: SQL is better suited for handling large datasets and complex queries involving multiple tables.
+
+Advantage of Cypher: Cypher has a more natural syntax for graph traversal and pattern matching, making it better suited for querying graph structures.
+
+Path Query: Find all the movies that have been noted by users who follow a specific user
+SQL:
+SELECT DISTINCT Movie.title
+FROM Movie JOIN U2Base ON Movie.movieid = U2Base.movieid
+JOIN Follow ON U2Base.userid = Follow.following
+WHERE Follow.user = 123;
+
+Cypher:
+MATCH (u:User {userId: 123})-[:FOLLOWS]->(u2:User)-[:RATED]->(m:Movie)
+RETURN DISTINCT m.title
+
+Advantage of SQL: SQL can handle complex joins involving multiple tables.
+
+Advantage of Cypher: Cypher has a more natural syntax for graph traversal and pattern matching, making it better suited for querying graph structures.
+
+Graph Metric Query: Find the director with the most movies directed
+SQL:
+SELECT Director.directorid, COUNT(*) AS movie_count
+FROM Director JOIN Movies2Directors ON Director.directorid = Movies2Directors.directorid
+GROUP BY Director.directorid
+ORDER BY movie_count DESC
+LIMIT 1;
+
+Cypher:
+MATCH (d:Director)-[:DIRECTED_BY]->(m:Movie)
+WITH d.directorId AS director_id, COUNT(m) AS movie_count
+RETURN director_id, movie_count
+ORDER BY movie_count DESC
+LIMIT 1
+
+Advantage of SQL: SQL can handle complex joins involving multiple tables.
+
+Advantage of Cypher: Cypher has a more natural syntax for graph traversal and pattern matching, making it better suited for querying graph structures.
+
+Selection Query: Get all the users who have rated a specific movie and their occupations
+SQL:
+SELECT Users.userid, Users.occupation
+FROM Users JOIN U2Base ON Users.userid = U2Base.userid
+WHERE U2Base.movieid = 123;
+
+Cypher:
+MATCH (m:Movie {movieId: 123})<-[:RATED]-(u:User)
+RETURN u.userId, u.occupation
+
+Advantage of SQL: SQL can handle complex joins involving multiple tables
